@@ -39,8 +39,6 @@ public class PdfToJpgUtil {
                     InputStream is = new FileInputStream(pdfFile);
                     PDDocument pdf = PDDocument.load(is, true);
                     List<PDPage> pages = pdf.getDocumentCatalog().getAllPages();
-                   // int actSize = pages.size(); // pdf中实际的页数
-                   // if (actSize < maxPage) maxPage = actSize;
                     for (int i = 0; i < pages.size(); i++) {
                         piclist.add(pages.get(i).convertToImage());
                     }
@@ -49,7 +47,11 @@ public class PdfToJpgUtil {
                 if(piclist.size() <= 0){
                     return 2;
                 }
-                yPic(piclist, outpath,offWidthLen,offHeightLen);
+                try {
+                    yPic(piclist, outpath, offWidthLen, offHeightLen);
+                }catch (Exception e){
+                    return -1;
+                }
             }else{
                 return 2;
             }
@@ -91,6 +93,7 @@ public class PdfToJpgUtil {
             }
 
         } catch (Exception e) {
+            throw new RuntimeException("出现异常...", e);
         }
         return fileList;
     }
@@ -105,61 +108,84 @@ public class PdfToJpgUtil {
      */
     public static void yPic(List<BufferedImage> piclist, String outPath,int offWidthLen, int offHeightLen) {// 纵向处理图片
         if (piclist == null || piclist.size() <= 0) {
-           // System.out.println("图片数组为空!");
-            return;
+            throw new RuntimeException("图片数组为空!");
         }
         try {
-            int fixHeight = 0, // 总高度
-                    width = 0, // 总宽度
+            int maxHeight = 0, // 最大高度
+                    maxWidth = 0, // 总宽度
                     _height = 0, // 临时的高度 , 或保存偏移高度
-                  //  __height = 0, // 临时的高度，主要保存每个高度
-                    picNum = piclist.size();// 图片的数量
-            File fileImg = null; // 保存读取出的图片
-            int[] heightArray = new int[picNum]; // 保存每个文件的高度
+                    picNum = piclist.size();/** 图片的数量 */
+            // 保存每个文件的高度
+            int[] heightArray = new int[picNum];
+            // 保存每个文件的宽度
+            int[] widthArray = new int[picNum];
             BufferedImage buffer = null; // 保存图片流
             List<int[]> imgRGB = new ArrayList<int[]>(); // 保存所有的图片的RGB
             int[] _imgRGB; // 保存一张图片中的RGB数据
             for (int i = 0; i < picNum; i++) {
                 buffer = piclist.get(i);
-                heightArray[i] = _height = buffer.getHeight();// 图片高度
-                if (i == 0) {
-                    width = buffer.getWidth();// 图片宽度
-                    fixHeight = _height;
+                heightArray[i] = buffer.getHeight();// 图片高度
+                widthArray[i] = buffer.getWidth(); // 图片宽度
+                if (heightArray[i] > maxHeight) {
+                    maxHeight = heightArray[i];
                 }
-                _imgRGB = new int[width * _height];// 从图片中读取RGB
-                _imgRGB = buffer.getRGB(0, 0, width, _height, _imgRGB, 0, width);
+                if (widthArray[i] > maxWidth){
+                    maxWidth = widthArray[i];
+                }
+                _imgRGB = new int[widthArray[i] * heightArray[i]];// 从图片中读取RGB
+                _imgRGB = buffer.getRGB(0, 0, widthArray[i], heightArray[i], _imgRGB, 0, widthArray[i]);
                 imgRGB.add(_imgRGB);
             }
             // 生成新图片
-            int number = 0;
-            BufferedImage imageResult = new BufferedImage(width * 2 + offWidthLen * 3, fixHeight *3 + offHeightLen * 4, BufferedImage.TYPE_INT_ARGB);
+            int number = 1;
+            BufferedImage imageResult = new BufferedImage(maxWidth * 2 + offWidthLen * 3, maxHeight *3 + offHeightLen * 4, BufferedImage.TYPE_INT_ARGB);
             Graphics graphics = imageResult.getGraphics();
             graphics.setColor(Color.black);
             _height = offHeightLen; // 设置偏移高度为offHeightLen
             int picHeight = 0;
+            int picWidth = 0;
             int row = 1;
-            for (int i = 0; i < picNum;i += 2) {
+            for (int i = 0; i < picNum; i += 2) {
+                int _width = 0; // 本图片宽度与最大图片宽度差
                 picHeight = heightArray[i];
+                picWidth = widthArray[i];
+                int offsetHeight = 0;
+                if(picHeight < maxHeight){
+                    offsetHeight += (maxHeight - picHeight);
+                }
+                if(picWidth < maxWidth){
+                    _width += (maxWidth - picWidth);
+                }
                 if (row != 1) {
-                    _height += picHeight;
+                    _height += maxHeight;
                     _height += offHeightLen;
                 }// 计算偏移高度
-                imageResult.setRGB(offWidthLen, _height, width, picHeight, imgRGB.get(i), 0, width); // 写入流中
-                graphics.drawLine(offWidthLen + width,_height+4,offWidthLen + width,picHeight + _height-2);
+                imageResult.setRGB(offWidthLen + _width, _height + offsetHeight, picWidth, picHeight, imgRGB.get(i), 0, picWidth); // 写入流中
+                graphics.drawLine(offWidthLen + maxWidth,_height+4+ offsetHeight,offWidthLen + maxWidth,picHeight + _height-2 + offsetHeight);
                 if(i + 1 < picNum ){
-                    imageResult.setRGB(offWidthLen*2 + width, _height, width, picHeight, imgRGB.get(i+1), 0, width); // 写入流中
-                    graphics.drawLine(offWidthLen*2 + width*2,_height+4,offWidthLen*2 + width*2,picHeight + _height-2);
+                    int nextPicHeight = heightArray[i+1];
+                    int nextPicWidth = widthArray[i+1];
+                    int nextOffsetWidth = 0;
+                    int nextOffsetHeight = 0;
+                    if(nextPicHeight < maxHeight){
+                        nextOffsetHeight = maxHeight - nextPicHeight;
+                    }
+                    if(nextPicWidth < maxWidth){
+                        nextOffsetWidth = maxWidth - nextPicWidth;
+                    }
+                    imageResult.setRGB(offWidthLen*2 + maxWidth + nextOffsetWidth, _height + nextOffsetHeight, nextPicWidth, nextPicHeight, imgRGB.get(i+1), 0, nextPicWidth); // 写入流中
+                    graphics.drawLine(offWidthLen*2 + maxWidth*2,_height+4 + nextOffsetHeight,offWidthLen*2 + maxWidth*2,picHeight + _height-2 + + nextOffsetHeight);
                 }
                 if(row == 3 || (i+1) == picNum-1 || i == picNum -1 ){
                     graphics.dispose();
-                    String newOutPath = outPath + File.separator + "order{number}.jpg".replace("{number}",number+"");
+                    String newOutPath = outPath + File.separator + "{number}.png".replace("{number}",number+"");
                     number += 1;
                     File outFile = new File(newOutPath);
                     ImageIO.write(imageResult, "png", outFile);// 写图片
                     _height = offHeightLen;
                     row = 1;
                     if((i+1) != picNum-1 && i != picNum -1){
-                        imageResult = new BufferedImage(width * 2 + offWidthLen * 3, fixHeight *3 + offHeightLen * 4, BufferedImage.TYPE_INT_ARGB);
+                        imageResult = new BufferedImage(maxWidth * 2 + offWidthLen * 3, maxHeight *3 + offHeightLen * 4, BufferedImage.TYPE_INT_ARGB);
                         graphics = imageResult.getGraphics();
                         graphics.setColor(Color.black);
                         continue;
@@ -170,11 +196,8 @@ public class PdfToJpgUtil {
                 row ++;
             }
         } catch (Exception e) {
-            //e.printStackTrace();
+            throw new RuntimeException("出现异常！", e);
         }
     }
 
-//    public static void main(String[] args) throws Exception {
-//        pdf2multiImage("F:\\pdfTest", "F:\\");
-//    }
 }

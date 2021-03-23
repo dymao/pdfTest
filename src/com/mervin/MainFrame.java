@@ -1,5 +1,6 @@
 package com.mervin;
 
+import com.mervin.eum.ResultEnum;
 import com.mervin.util.Utils;
 
 import javax.swing.*;
@@ -15,6 +16,8 @@ import java.io.File;
  */
 public class MainFrame extends JFrame implements ActionListener {
 
+    public static final int WIN_WIDTH_SIZE = 455;
+    public static final int WIN_HEIGHT_SIZE = 350;
 
     private JLabel srcLabel;
     private JTextField srcTextField;
@@ -24,11 +27,11 @@ public class MainFrame extends JFrame implements ActionListener {
     private JTextField descTextField;
     private JButton descBtn;
 
-    private JLabel offWidthLabel;
-    private JTextField offWidthTextField;
+    private JLabel intervalWidthLabel;
+    private JTextField intervalWidthTextField;
 
-    private JLabel offHeightLabel;
-    private JTextField offHeightTextField;
+    private JLabel intervalHeightLabel;
+    private JTextField intervalHeightTextField;
 
 
 
@@ -38,7 +41,7 @@ public class MainFrame extends JFrame implements ActionListener {
     private Image icon;
 
     public MainFrame(){
-        this.setTitle("订单合成小工具");
+        this.setTitle("订单合成小工具V1.2");
         FlowLayout layout = new FlowLayout();// 布局
         srcLabel = new JLabel("请选择文件夹（PDF订单文件所在目录）：");// 标签
         srcTextField = new JTextField(30);// 文本域
@@ -54,13 +57,13 @@ public class MainFrame extends JFrame implements ActionListener {
 
         JLabel notice = new JLabel("订单信息间距调整：");
 
-        offWidthLabel = new JLabel("横向间距:");
-        offWidthTextField = new JTextField("25");
-        offWidthTextField.setPreferredSize(new Dimension(70,30));
+        intervalWidthLabel = new JLabel("横向间距:");
+        intervalWidthTextField = new JTextField("25");
+        intervalWidthTextField.setPreferredSize(new Dimension(70,30));
 
-        offHeightLabel = new JLabel("竖向间距:");
-        offHeightTextField = new JTextField("25");
-        offHeightTextField.setPreferredSize(new Dimension(70,30));
+        intervalHeightLabel = new JLabel("竖向间距:");
+        intervalHeightTextField = new JTextField("25");
+        intervalHeightTextField.setPreferredSize(new Dimension(70,30));
 
         sureBtn = new JButton("开始转换");
         sureBtn.setPreferredSize(new Dimension(100, 40));
@@ -99,15 +102,15 @@ public class MainFrame extends JFrame implements ActionListener {
 
         contain.add(notice);
 
-        contain.add(offWidthLabel);
-        contain.add(offWidthTextField);
-        contain.add(offHeightLabel);
-        contain.add(offHeightTextField);
+        contain.add(intervalWidthLabel);
+        contain.add(intervalWidthTextField);
+        contain.add(intervalHeightLabel);
+        contain.add(intervalHeightTextField);
 
         sureBtn.addActionListener(this);
         contain.add(sureBtn);
 
-        this.setBounds(700, 400, 455, 350);
+        this.setBounds(getLocalX(), getLocalY(), WIN_WIDTH_SIZE, WIN_HEIGHT_SIZE);
         this.setVisible(true);
         this.setResizable(false);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -124,56 +127,35 @@ public class MainFrame extends JFrame implements ActionListener {
         }else if(e.getSource() == descBtn){
             openChooserFileDialog(descTextField);
         }else if(e.getSource() == sureBtn){
-            String srcPath = srcTextField.getText();
-            if(srcPath == null || "".equals(srcPath.trim())){
-                JOptionPane.showMessageDialog(null, "请选择PDF订单文件夹!","温馨提示",JOptionPane.WARNING_MESSAGE);
+            if(!check()){
                 return;
             }
-            String descPath = descTextField.getText();
-            if(descPath == null || "".equals(descPath.trim())){
-                JOptionPane.showMessageDialog(null, "请选择订单图片存放路径!","温馨提示",JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            String offWidthStr = offWidthTextField.getText();
-            if(!Utils.isNumeric(offWidthStr)){
-                JOptionPane.showMessageDialog(null, "横向间距只能为整数!","温馨提示",JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            String offHeightStr = offHeightTextField.getText();
-            if(!Utils.isNumeric(offHeightStr)){
-                JOptionPane.showMessageDialog(null, "竖向间距只能为整数!","温馨提示",JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            int offWidth = Integer.parseInt(offWidthStr);
-            int offHeight = Integer.parseInt(offHeightStr);
-            if(offHeight < 0 || offWidth < 0 || offWidth > 100 || offHeight > 100){
-                JOptionPane.showMessageDialog(null, "间距只能在0-100之间!","温馨提示",JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+            sureBtn.setText("正在转换...");
+            sureBtn.setEnabled(false);
+            sureBtn.removeActionListener(this);
+            ErrorInfoCache.clear();
             try {
-                sureBtn.setText("正在转换...");
-                sureBtn.setEnabled(false);
-                sureBtn.removeActionListener(this);
-                int result = PdfToJpgUtil.pdf2multiImage(srcPath, descPath,offWidth,offHeight);
+                int result = PdfToImageUtil.pdf2multiImage(srcTextField.getText(),
+                        descTextField.getText(),
+                        Integer.parseInt(intervalWidthTextField.getText()),
+                        Integer.parseInt(intervalHeightTextField.getText()));
                 sureBtn.setText("开始转换");
                 sureBtn.setEnabled(true);
-                 sureBtn.addActionListener(this);
-                if(result == 0){
-                    JOptionPane.showMessageDialog(null, "转换成功!","温馨提示",JOptionPane.INFORMATION_MESSAGE);
-                }else if(result == 2){
-                    JOptionPane.showMessageDialog(null, "选择路径不存在PDF订单文件，请检查!","温馨提示",JOptionPane.WARNING_MESSAGE);
-                }else if(result == -1){
-                    JOptionPane.showMessageDialog(null, "转换异常!请联系系统管理员","温馨提示",JOptionPane.ERROR_MESSAGE);
-                }
+                sureBtn.addActionListener(this);
+                String resultDesc = ErrorInfoCache.getInfoMsg(result);
+                JOptionPane.showMessageDialog(null, resultDesc,"温馨提示",JOptionPane.INFORMATION_MESSAGE);
             }catch (Exception ex){
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(null, "转换异常!请联系系统管理员","温馨提示",JOptionPane.ERROR_MESSAGE);
             }
+            ErrorInfoCache.clear();
         }
-
-
     }
 
+    /**
+     * 打开文件选择框
+     * @param descTextField
+     */
     private void openChooserFileDialog(JTextField descTextField){
         JFileChooser chooser = new JFileChooser();
         chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -183,5 +165,58 @@ public class MainFrame extends JFrame implements ActionListener {
             String path = file.getAbsoluteFile().toString();
             descTextField.setText(path);
         }
+    }
+
+    /**
+     * 获取X坐标
+     * @return
+     */
+    private int getLocalX(){
+        Dimension screensize = Toolkit.getDefaultToolkit().getScreenSize();
+        return (int) screensize.getWidth() / 2 - WIN_WIDTH_SIZE / 2;
+    }
+
+    /**
+     * 获取Y坐标
+     * @return
+     */
+    private int getLocalY(){
+        Dimension screensize = Toolkit.getDefaultToolkit().getScreenSize();
+        return (int) screensize.getHeight() / 2 - WIN_HEIGHT_SIZE / 2;
+    }
+
+
+    /**
+     * 输入相关校验逻辑
+     * @return
+     */
+    private boolean check(){
+        String srcPath = srcTextField.getText();
+        if(srcPath == null || "".equals(srcPath.trim())){
+            JOptionPane.showMessageDialog(null, "请选择PDF订单文件夹!","温馨提示",JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        String descPath = descTextField.getText();
+        if(descPath == null || "".equals(descPath.trim())){
+            JOptionPane.showMessageDialog(null, "请选择订单图片存放路径!","温馨提示",JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        String offWidthStr = intervalWidthTextField.getText();
+        if(!Utils.isNumeric(offWidthStr)){
+            JOptionPane.showMessageDialog(null, "横向间距只能为整数!","温馨提示",JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        String offHeightStr = intervalHeightTextField.getText();
+        if(!Utils.isNumeric(offHeightStr)){
+            JOptionPane.showMessageDialog(null, "竖向间距只能为整数!","温馨提示",JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        int offWidth = Integer.parseInt(offWidthStr);
+        int offHeight = Integer.parseInt(offHeightStr);
+        if(offHeight < 0 || offWidth < 0 || offWidth > 100 || offHeight > 100){
+            JOptionPane.showMessageDialog(null, "间距只能在0-100之间!","温馨提示",JOptionPane.WARNING_MESSAGE);
+            return false;
+        }
+        return true;
     }
 }
